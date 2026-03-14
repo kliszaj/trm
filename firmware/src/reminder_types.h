@@ -21,10 +21,10 @@ struct TypeInfo {
 
 // RGB565: ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 static const TypeInfo REMINDER_TYPES[] = {
-    { "feed_evie",     "Feed Evie",     "/img_feed_evie.bin",      0xE8F1 }, // #E91D8F pink
-    { "water_plants",  "Water plants",  "/img_water_plants.bin",   0xF924 }, // #F5A623 orange
-    { "eat_vitamins",  "Eat vitamins",  "/img_eat_vitamins.bin",   0x4D7C }, // #4BAEE4 blue
-    { "take_out_trash","Take out trash","/img_take_out_trash.bin", 0x7B78 }, // #7B6CC6 purple
+    { "feed_evie",     "Feed Evie",     "/img_feed_evie.bin",      0xEA71 }, // #EC4E89 pink
+    { "water_plants",  "Water plants",  "/img_water_plants.bin",   0xFD8A }, // #F8B352 orange
+    { "eat_vitamins",  "Eat vitamins",  "/img_eat_vitamins.bin",   0x457F }, // #41AEFF blue
+    { "take_out_trash","Take out trash","/img_take_out_trash.bin", 0x731E }, // #7261F3 purple
 };
 static const int REMINDER_TYPE_COUNT = 4;
 
