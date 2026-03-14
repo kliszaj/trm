@@ -45,7 +45,7 @@
 
 <div class="app">
   <header class="header">
-    <h1 class="wordmark">that reminds me…</h1>
+    <img src="/logo.png" alt="that reminds me…" class="logo" />
     {#if !showForm}
       <button class="btn-add" onclick={() => (showForm = true)}>
         <span class="plus">+</span> Add reminder
@@ -77,17 +77,16 @@
 
   .header {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
     padding: 24px 0 20px;
     gap: 12px;
   }
 
-  .wordmark {
-    font-size: 1.15rem;
-    font-weight: 600;
-    margin: 0;
-    letter-spacing: -0.01em;
+  .logo {
+    height: 100px;
+    width: auto;
+    margin-left: 8px;
   }
 
   .btn-add {

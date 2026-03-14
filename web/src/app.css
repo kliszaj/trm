@@ -1,12 +1,12 @@
 /* ── Design tokens ─────────────────────────────────────────────────────────── */
 :root {
-  --bg:         #0f0f0f;
-  --surface:    #1a1a1a;
-  --border:     #2a2a2a;
-  --text:       #f0f0f0;
-  --text-muted: #888;
-  --accent:     #7c6fe0;   /* soft indigo */
-  --danger:     #e05c5c;
+  --bg:         #f7f5f2;
+  --surface:    #ffffff;
+  --border:     #e8e4df;
+  --text:       #1a1714;
+  --text-muted: #9e9893;
+  --accent:     #7261F3;   /* matches take_out_trash purple from the design system */
+  --danger:     #d94f4f;
 }
 
 /* ── Reset / base ──────────────────────────────────────────────────────────── */
