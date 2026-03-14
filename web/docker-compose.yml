@@ -1,0 +1,6 @@
+services:
+  trm-web:
+    image: kliszaj/trm-web:latest
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

@@ -1,0 +1,19 @@
+# Firmware
+firmware/.pio/
+firmware/.vscode/
+
+# Web
+web/node_modules/
+web/.svelte-kit/
+web/build/
+
+# Environment / secrets
+web/.env
+web/.env.local
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
