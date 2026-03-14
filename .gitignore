@@ -1,6 +1,8 @@
 # Firmware
 firmware/.pio/
 firmware/.vscode/
+firmware/tools/fonts/     # commercial font source files — do not commit
+firmware/data/*.vlw       # generated font files — regenerate via convert_fonts.py
 
 # Web
 web/node_modules/

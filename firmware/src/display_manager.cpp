@@ -1,5 +1,6 @@
 #include "display_manager.h"
 #include <TFT_eSPI.h>
+#include <LittleFS.h>
 #include <vector>
 #include <time.h>
 
@@ -10,16 +11,20 @@ static TFT_eSPI tft = TFT_eSPI();
 // Palette
 static const uint16_t COLOR_BG       = TFT_BLACK;
 static const uint16_t COLOR_TEXT      = TFT_WHITE;
-static const uint16_t COLOR_MUTED     = 0x7BEF;  // ~mid-grey
-static const uint16_t COLOR_ACCENT    = 0x07FF;  // Cyan
-static const uint16_t COLOR_ACTIVE_BG = 0x0010;  // Very dark blue (active state)
-static const uint16_t COLOR_RING      = 0xFD20;  // Orange ring for active state
+static const uint16_t COLOR_MUTED     = 0x7BEF;  // mid-grey
+static const uint16_t COLOR_ACTIVE_BG = 0x0010;  // very dark blue
+static const uint16_t COLOR_RING      = 0xFD20;  // orange ring
+
+// Font names (VLW files on LittleFS, no extension)
+static const char* FONT_SMALL  = "PPMondwest-20";   // "Next" label + time string
+static const char* FONT_LARGE  = "PPMondwest-36";   // reminder name (idle)
+static const char* FONT_ACTIVE = "PPMondwest-42";   // reminder name (active)
 
 bool DisplayManager::begin() {
     tft.init();
     tft.setRotation(0);
     tft.fillScreen(COLOR_BG);
-    tft.setTextDatum(MC_DATUM);  // Middle-Centre default
+    tft.setTextDatum(MC_DATUM);
     Serial.println("[display] Initialized");
     return true;
 }
@@ -37,71 +42,72 @@ void DisplayManager::showActive(const Reminder& r) {
 // ── Idle screen ───────────────────────────────────────────────────────────────
 void DisplayManager::drawIdleScreen(const Reminder* next) {
     tft.fillScreen(COLOR_BG);
+    tft.setTextDatum(MC_DATUM);
 
     if (!next) {
+        tft.loadFont(FONT_SMALL, LittleFS);
         tft.setTextColor(COLOR_MUTED, COLOR_BG);
-        tft.setTextFont(2);
-        tft.setTextSize(1);
         tft.drawString("No reminders", 120, 120);
+        tft.unloadFont();
         return;
     }
 
-    // "NEXT" label — small, muted, top area
+    // "Next" label — small, muted, top
+    tft.loadFont(FONT_SMALL, LittleFS);
     tft.setTextColor(COLOR_MUTED, COLOR_BG);
-    tft.setTextFont(2);
-    tft.setTextSize(1);
-    tft.drawString("NEXT", 120, 70);
+    tft.drawString("Next", 120, 72);
+    tft.unloadFont();
 
-    // Reminder name — large, center
+    // Reminder name — large, centered
+    tft.loadFont(FONT_LARGE, LittleFS);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
-    tft.setTextFont(4);
-    tft.setTextSize(1);
 
-    // Word-wrap within ~180px circle chord at center
     std::vector<String> lines;
-    wrapText(next->name, 16, lines);  // ~16 chars per line for font4
+    wrapText(next->name, tft.textWidth("W") > 0 ? 180 / tft.textWidth("W") : 10, lines);
 
-    int lineH = 28;
+    int lineH = tft.fontHeight() + 4;
     int startY = 120 - ((int)lines.size() - 1) * lineH / 2;
     for (int i = 0; i < (int)lines.size(); i++) {
         tft.drawString(lines[i], 120, startY + i * lineH);
     }
+    tft.unloadFont();
 
-    // Time string — below name, medium, accent colour
-    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
-    tft.setTextFont(2);
-    tft.setTextSize(1);
+    // Time string — small, muted, bottom
+    tft.loadFont(FONT_SMALL, LittleFS);
+    tft.setTextColor(COLOR_MUTED, COLOR_BG);
     tft.drawString(formatScheduledAt(next->scheduled_at), 120, 170);
+    tft.unloadFont();
 }
 
 // ── Active screen ─────────────────────────────────────────────────────────────
 void DisplayManager::drawActiveScreen(const Reminder& r) {
     tft.fillScreen(COLOR_ACTIVE_BG);
 
-    // Outer pulsing ring — drawn as a thick circle
+    // Orange ring
     tft.drawCircle(120, 120, 115, COLOR_RING);
     tft.drawCircle(120, 120, 114, COLOR_RING);
     tft.drawCircle(120, 120, 113, COLOR_RING);
 
     // Reminder name — large, center
+    tft.setTextDatum(MC_DATUM);
+    tft.loadFont(FONT_ACTIVE, LittleFS);
     tft.setTextColor(COLOR_TEXT, COLOR_ACTIVE_BG);
-    tft.setTextFont(4);
-    tft.setTextSize(1);
 
     std::vector<String> lines;
-    wrapText(r.name, 14, lines);  // Slightly narrower to stay within ring
+    wrapText(r.name, tft.textWidth("W") > 0 ? 160 / tft.textWidth("W") : 9, lines);
 
-    int lineH = 30;
-    int startY = 110 - ((int)lines.size() - 1) * lineH / 2;
+    int lineH = tft.fontHeight() + 4;
+    int startY = 112 - ((int)lines.size() - 1) * lineH / 2;
     for (int i = 0; i < (int)lines.size(); i++) {
         tft.drawString(lines[i], 120, startY + i * lineH);
     }
+    tft.unloadFont();
 
-    // "TAP TO DISMISS" hint
+    // "tap to dismiss" hint — small, muted, bottom
+    tft.loadFont(FONT_SMALL, LittleFS);
     tft.setTextColor(COLOR_MUTED, COLOR_ACTIVE_BG);
-    tft.setTextFont(1);
-    tft.setTextSize(1);
-    tft.drawString("TAP TO DISMISS", 120, 175);
+    tft.drawString("tap to dismiss", 120, 178);
+    tft.unloadFont();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -112,7 +118,6 @@ String DisplayManager::formatScheduledAt(time_t t) {
     localtime_r(&now, &tm_now);
 
     char timeBuf[10];
-    // 12-hour format: "6:30 PM"
     int hour = tm_t.tm_hour;
     const char* ampm = hour >= 12 ? "PM" : "AM";
     if (hour == 0) hour = 12;
@@ -145,10 +150,10 @@ String DisplayManager::formatScheduledAt(time_t t) {
 }
 
 void DisplayManager::wrapText(const String& text, int maxChars, std::vector<String>& lines) {
+    if (maxChars < 1) maxChars = 10;
     String remaining = text;
     while (remaining.length() > (size_t)maxChars) {
         int breakAt = maxChars;
-        // Prefer breaking at a space
         for (int i = maxChars; i > 0; i--) {
             if (remaining.charAt(i) == ' ') { breakAt = i; break; }
         }
