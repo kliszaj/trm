@@ -1,23 +1,24 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Reminder, CreateReminderPayload, ReminderStatus } from './types';
+import { getTypeMeta } from './reminder-type-meta';
 
-// Seed with a couple of sample reminders
+// Seed with sample reminders
 const store: Reminder[] = [
   {
     id: uuidv4(),
-    name: 'Take out the trash',
+    name: 'Take out trash',
     scheduled_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-    type: 'generic',
+    type: 'take_out_trash',
     recurrence: 'weekly',
     status: 'pending',
     created_at: new Date().toISOString(),
   },
   {
     id: uuidv4(),
-    name: 'Call the dentist',
+    name: 'Feed Evie',
     scheduled_at: new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString(),
-    type: 'generic',
-    recurrence: 'none',
+    type: 'feed_evie',
+    recurrence: 'daily',
     status: 'pending',
     created_at: new Date().toISOString(),
   },
@@ -35,9 +36,9 @@ export const mockApi = {
     await delay();
     const r: Reminder = {
       id: uuidv4(),
-      name: payload.name,
+      name: getTypeMeta(payload.type).label,
       scheduled_at: payload.scheduled_at,
-      type: 'generic',
+      type: payload.type,
       recurrence: payload.recurrence,
       status: 'pending',
       created_at: new Date().toISOString(),

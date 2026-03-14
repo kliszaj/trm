@@ -1,6 +1,7 @@
 <script lang="ts">
-  import type { CreateReminderPayload, Recurrence } from '$lib/types';
+  import type { CreateReminderPayload, Recurrence, ReminderType } from '$lib/types';
   import { format } from 'date-fns';
+  import TypePicker from './TypePicker.svelte';
 
   let { onSubmit, onCancel }: {
     onSubmit: (payload: CreateReminderPayload) => Promise<void>;
@@ -16,26 +17,23 @@
 
   const defaultDt = defaultDateTime();
 
-  let name = $state('');
-  let date = $state(format(defaultDt, 'yyyy-MM-dd'));
-  let time = $state(format(defaultDt, 'HH:mm'));
-  let recurrence = $state<Recurrence>('none');
-  let submitting = $state(false);
-  let error = $state('');
+  let selectedType = $state<ReminderType | null>(null);
+  let date         = $state(format(defaultDt, 'yyyy-MM-dd'));
+  let time         = $state(format(defaultDt, 'HH:mm'));
+  let recurrence   = $state<Recurrence>('none');
+  let submitting   = $state(false);
+  let error        = $state('');
 
-  const nameError = $derived(
-    name.length > 40 ? `${name.length}/40 — too long` : ''
-  );
+  const canSubmit = $derived(selectedType !== null && !submitting);
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
-    if (!name.trim() || name.length > 40) return;
+    if (!selectedType) return;
     error = '';
     submitting = true;
     try {
-      // Combine date + time into an ISO 8601 string
       const scheduled_at = new Date(`${date}T${time}:00`).toISOString();
-      await onSubmit({ name: name.trim(), scheduled_at, recurrence });
+      await onSubmit({ type: selectedType, scheduled_at, recurrence });
     } catch (err) {
       error = err instanceof Error ? err.message : 'Something went wrong';
       submitting = false;
@@ -46,22 +44,10 @@
 <form class="form" onsubmit={handleSubmit}>
   <h2 class="title">New reminder</h2>
 
-  <label class="field">
-    <span class="label">Name</span>
-    <input
-      type="text"
-      bind:value={name}
-      placeholder="What do you need to remember?"
-      maxlength="40"
-      required
-      class:invalid={!!nameError}
-    />
-    {#if nameError}
-      <span class="hint error">{nameError}</span>
-    {:else}
-      <span class="hint">{name.length}/40</span>
-    {/if}
-  </label>
+  <div class="field">
+    <span class="label">What is it?</span>
+    <TypePicker value={selectedType} onSelect={(t) => (selectedType = t)} />
+  </div>
 
   <div class="row">
     <label class="field">
@@ -93,7 +79,7 @@
     <button type="button" class="btn secondary" onclick={onCancel} disabled={submitting}>
       Cancel
     </button>
-    <button type="submit" class="btn primary" disabled={submitting || !!nameError || !name.trim()}>
+    <button type="submit" class="btn primary" disabled={!canSubmit}>
       {submitting ? 'Saving…' : 'Save reminder'}
     </button>
   </div>
@@ -143,19 +129,6 @@
   input:focus, select:focus {
     outline: none;
     border-color: var(--accent);
-  }
-
-  input.invalid {
-    border-color: var(--danger);
-  }
-
-  .hint {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-
-  .hint.error {
-    color: var(--danger);
   }
 
   .row {

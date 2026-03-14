@@ -2,17 +2,21 @@
 #include <Arduino.h>
 #include <vector>
 #include <ArduinoJson.h>
+#include "reminder_types.h"
 
 enum class ReminderStatus { Pending, Active, Completed };
 enum class Recurrence { None, Daily, Weekly, Weekdays };
 
 struct Reminder {
     String id;
-    String name;
+    ReminderType type;
     time_t scheduled_at;   // UTC epoch
     Recurrence recurrence;
     ReminderStatus status;
     time_t created_at;     // UTC epoch
+
+    // Convenience: label derived from type
+    String label() const { return String(getTypeInfo(type)->label); }
 };
 
 class ReminderStore {

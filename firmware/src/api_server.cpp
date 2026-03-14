@@ -1,5 +1,6 @@
 #include "api_server.h"
 #include "reminder_store.h"
+#include "reminder_types.h"
 #include "recurrence.h"
 #include "time_manager.h"
 #include <WebServer.h>
@@ -77,10 +78,10 @@ static void handlePostReminder() {
         return;
     }
 
-    String name = doc["name"] | "";
-    name.trim();
-    if (name.isEmpty() || name.length() > 40) {
-        server.send(400, "application/json", "{\"error\":\"Invalid name\"}");
+    String typeStr = doc["type"] | "";
+    ReminderType rType = reminderTypeFromString(typeStr);
+    if (rType == ReminderType::Unknown) {
+        server.send(400, "application/json", "{\"error\":\"Invalid type\"}");
         return;
     }
     String scheduledStr = doc["scheduled_at"] | "";
@@ -91,7 +92,7 @@ static void handlePostReminder() {
 
     Reminder r;
     r.id           = generateUUID();
-    r.name         = name;
+    r.type         = rType;
     r.scheduled_at = ReminderStore::fromISO8601(scheduledStr);
     r.recurrence   = ReminderStore::recurrenceFromString(doc["recurrence"] | "none");
     r.status       = ReminderStatus::Pending;

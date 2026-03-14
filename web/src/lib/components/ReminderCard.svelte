@@ -2,6 +2,7 @@
   import { format, isToday, isTomorrow } from 'date-fns';
   import type { Reminder } from '$lib/types';
   import RecurrenceBadge from './RecurrenceBadge.svelte';
+  import { getTypeMeta } from '$lib/reminder-type-meta';
 
   let {
     reminder,
@@ -10,6 +11,8 @@
     reminder: Reminder;
     onDelete: (id: string) => void;
   } = $props();
+
+  const typeMeta = $derived(getTypeMeta(reminder.type));
 
   const scheduled = $derived(new Date(reminder.scheduled_at));
 
@@ -29,9 +32,10 @@
   }
 </script>
 
-<article class="card" class:active={reminder.status === 'active'}>
+<article class="card" class:active={reminder.status === 'active'} style="--type-color: {typeMeta.color}">
+  <span class="type-dot"></span>
   <div class="main">
-    <span class="name">{reminder.name}</span>
+    <span class="name">{typeMeta.label}</span>
     <div class="meta">
       <span class="time">{timeLabel}</span>
       <RecurrenceBadge recurrence={reminder.recurrence} />
@@ -65,8 +69,16 @@
   }
 
   .card.active {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    border-color: var(--type-color);
+    background: color-mix(in srgb, var(--type-color) 8%, var(--surface));
+  }
+
+  .type-dot {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--type-color);
   }
 
   .main {

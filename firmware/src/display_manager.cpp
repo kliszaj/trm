@@ -63,7 +63,7 @@ void DisplayManager::drawIdleScreen(const Reminder* next) {
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
 
     std::vector<String> lines;
-    wrapText(next->name, tft.textWidth("W") > 0 ? 180 / tft.textWidth("W") : 10, lines);
+    wrapText(next->label(), tft.textWidth("W") > 0 ? 180 / tft.textWidth("W") : 10, lines);
 
     int lineH = tft.fontHeight() + 4;
     int startY = 120 - ((int)lines.size() - 1) * lineH / 2;
@@ -81,33 +81,34 @@ void DisplayManager::drawIdleScreen(const Reminder* next) {
 
 // ── Active screen ─────────────────────────────────────────────────────────────
 void DisplayManager::drawActiveScreen(const Reminder& r) {
-    tft.fillScreen(COLOR_ACTIVE_BG);
+    const TypeInfo* info = getTypeInfo(r.type);
 
-    // Orange ring
-    tft.drawCircle(120, 120, 115, COLOR_RING);
-    tft.drawCircle(120, 120, 114, COLOR_RING);
-    tft.drawCircle(120, 120, 113, COLOR_RING);
+    // Fill with the type's background color
+    tft.fillScreen(info->bgColor);
 
-    // Reminder name — large, center
-    tft.setTextDatum(MC_DATUM);
-    tft.loadFont(FONT_ACTIVE, LittleFS);
-    tft.setTextColor(COLOR_TEXT, COLOR_ACTIVE_BG);
-
-    std::vector<String> lines;
-    wrapText(r.name, tft.textWidth("W") > 0 ? 160 / tft.textWidth("W") : 9, lines);
-
-    int lineH = tft.fontHeight() + 4;
-    int startY = 112 - ((int)lines.size() - 1) * lineH / 2;
-    for (int i = 0; i < (int)lines.size(); i++) {
-        tft.drawString(lines[i], 120, startY + i * lineH);
+    // Draw pixel art image from LittleFS (raw RGB565, 240×240, line-by-line)
+    // Pixels with color 0xF81F (magenta chroma key) are treated as transparent.
+    File img = LittleFS.open(info->imgFile, "r");
+    if (img) {
+        uint16_t lineBuf[240];
+        for (int y = 0; y < 240; y++) {
+            if (img.read((uint8_t*)lineBuf, 480) != 480) break;
+            // Swap bytes: file is big-endian, ESP32 is little-endian
+            for (int x = 0; x < 240; x++) {
+                lineBuf[x] = __builtin_bswap16(lineBuf[x]);
+            }
+            tft.pushImage(0, y, 240, 1, lineBuf, (uint16_t)0xF81F);
+        }
+        img.close();
+    } else {
+        // Fallback: show label as text if image not found
+        Serial.printf("[display] Image not found: %s\n", info->imgFile);
+        tft.loadFont(FONT_ACTIVE, LittleFS);
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(COLOR_TEXT, info->bgColor);
+        tft.drawString(info->label, 120, 120);
+        tft.unloadFont();
     }
-    tft.unloadFont();
-
-    // "tap to dismiss" hint — small, muted, bottom
-    tft.loadFont(FONT_SMALL, LittleFS);
-    tft.setTextColor(COLOR_MUTED, COLOR_ACTIVE_BG);
-    tft.drawString("tap to dismiss", 120, 178);
-    tft.unloadFont();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

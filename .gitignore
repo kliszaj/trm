@@ -2,7 +2,9 @@
 firmware/.pio/
 firmware/.vscode/
 firmware/tools/fonts/     # commercial font source files — do not commit
+firmware/tools/images/    # pixel art source PNGs — do not commit
 firmware/data/*.vlw       # generated font files — regenerate via convert_fonts.py
+firmware/data/*.bin       # generated image files — regenerate via convert_images.py
 
 # Web
 web/node_modules/

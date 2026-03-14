@@ -86,22 +86,22 @@ bool ReminderStore::save() {
 
 void ReminderStore::serializeReminder(JsonObject& obj, const Reminder& r) {
     obj["id"]           = r.id;
-    obj["name"]         = r.name;
+    obj["name"]         = r.label();   // derived from type for API consumers
     obj["scheduled_at"] = toISO8601(r.scheduled_at);
-    obj["type"]         = "generic";
+    obj["type"]         = reminderTypeToString(r.type);
     obj["recurrence"]   = recurrenceToString(r.recurrence);
     obj["status"]       = statusToString(r.status);
     obj["created_at"]   = toISO8601(r.created_at);
 }
 
 bool ReminderStore::deserializeReminder(JsonObject& obj, Reminder& r) {
-    if (!obj["id"].is<String>() || !obj["name"].is<String>()) return false;
-    r.id         = obj["id"].as<String>();
-    r.name       = obj["name"].as<String>();
+    if (!obj["id"].is<String>()) return false;
+    r.id           = obj["id"].as<String>();
+    r.type         = reminderTypeFromString(obj["type"] | "feed_evie");
     r.scheduled_at = fromISO8601(obj["scheduled_at"].as<String>());
-    r.recurrence = recurrenceFromString(obj["recurrence"] | "none");
-    r.status     = statusFromString(obj["status"] | "pending");
-    r.created_at = fromISO8601(obj["created_at"].as<String>());
+    r.recurrence   = recurrenceFromString(obj["recurrence"] | "none");
+    r.status       = statusFromString(obj["status"] | "pending");
+    r.created_at   = fromISO8601(obj["created_at"].as<String>());
     return true;
 }
 

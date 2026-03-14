@@ -1,18 +1,19 @@
 export type ReminderStatus = 'pending' | 'active' | 'completed';
 export type Recurrence = 'none' | 'daily' | 'weekly' | 'weekdays';
+export type ReminderType = 'feed_evie' | 'water_plants' | 'eat_vitamins' | 'take_out_trash';
 
 export interface Reminder {
   id: string;
-  name: string;
+  name: string;           // derived from type on the device, returned for display
   scheduled_at: string;   // ISO 8601
-  type: 'generic';
+  type: ReminderType;
   recurrence: Recurrence;
   status: ReminderStatus;
   created_at: string;     // ISO 8601
 }
 
 export interface CreateReminderPayload {
-  name: string;
+  type: ReminderType;
   scheduled_at: string;
   recurrence: Recurrence;
 }
