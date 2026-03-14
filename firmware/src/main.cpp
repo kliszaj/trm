@@ -9,16 +9,24 @@
 
 static unsigned long lastPollMs = 0;
 
-// Returns the earliest pending reminder that has fired (scheduled_at <= now),
-// or nullptr if none.
 static Reminder* getNextActiveReminder() {
-    time_t now = time(nullptr);
     Reminder* earliest = nullptr;
     for (auto& r : const_cast<std::vector<Reminder>&>(reminderStore.getAll())) {
         if (r.status == ReminderStatus::Active) {
-            if (!earliest || r.scheduled_at < earliest->scheduled_at) {
+            if (!earliest || r.scheduled_at < earliest->scheduled_at)
                 earliest = &r;
-            }
+        }
+    }
+    return earliest;
+}
+
+static const Reminder* getNextPendingReminder() {
+    const Reminder* earliest = nullptr;
+    time_t t = LONG_MAX;
+    for (const auto& r : reminderStore.getAll()) {
+        if (r.status == ReminderStatus::Pending && r.scheduled_at < t) {
+            t = r.scheduled_at;
+            earliest = &r;
         }
     }
     return earliest;
@@ -35,20 +43,10 @@ static void checkAndFireReminders() {
     }
     if (fired) {
         Reminder* active = getNextActiveReminder();
-        if (active) {
-            displayManager.showActive(*active);
-        }
+        if (active) displayManager.showActive(*active);
     } else if (displayManager.getState() == DisplayState::Idle) {
-        // Refresh idle screen in case reminders were added/removed
-        const Reminder* next = nullptr;
-        time_t earliest = LONG_MAX;
-        for (const auto& r : reminderStore.getAll()) {
-            if (r.status == ReminderStatus::Pending && r.scheduled_at < earliest) {
-                earliest = r.scheduled_at;
-                next = &r;
-            }
-        }
-        displayManager.showIdle(next);
+        // Refresh idle — next reminder may have changed
+        displayManager.showIdle(getNextPendingReminder());
     }
 }
 
@@ -56,26 +54,17 @@ static void dismissCurrentReminder() {
     Reminder* active = getNextActiveReminder();
     if (!active) return;
 
-    // PATCH via internal call (marks completed, handles recurrence)
-    Recurrence rec = active->recurrence;
-    String id = active->id;
-    reminderStore.updateStatus(id, ReminderStatus::Completed);
+    reminderStore.updateStatus(active->id, ReminderStatus::Completed);
 
-    // Advance to next active, or return to idle
-    Reminder* next = getNextActiveReminder();
-    if (next) {
-        displayManager.showActive(*next);
+    // Show confirmation checkmark, then transition
+    displayManager.showConfirmation();
+
+    // After confirmation: check for more active reminders or go idle
+    Reminder* nextActive = getNextActiveReminder();
+    if (nextActive) {
+        displayManager.showActive(*nextActive);
     } else {
-        // Find next pending
-        const Reminder* nextPending = nullptr;
-        time_t earliest = LONG_MAX;
-        for (const auto& r : reminderStore.getAll()) {
-            if (r.status == ReminderStatus::Pending && r.scheduled_at < earliest) {
-                earliest = r.scheduled_at;
-                nextPending = &r;
-            }
-        }
-        displayManager.showIdle(nextPending);
+        displayManager.showIdle(getNextPendingReminder());
     }
 }
 
@@ -85,21 +74,18 @@ void setup() {
     Serial.println("\n[boot] that reminds me... starting");
 
     displayManager.begin();
-    displayManager.showIdle(nullptr);  // Blank idle while booting
+    displayManager.showBoot();   // Logo while connecting
 
     if (!wifiConnect()) {
-        Serial.println("[boot] Wi-Fi failed — display will show offline state");
+        Serial.println("[boot] Wi-Fi failed");
     }
 
     timeSyncInit();
-
     reminderStore.begin();
-
     apiServerBegin();
-
     touchManager.begin();
 
-    // Initial render
+    // First render — show active if any fired, else idle
     checkAndFireReminders();
 
     Serial.println("[boot] Ready");
@@ -108,6 +94,7 @@ void setup() {
 void loop() {
     apiServerHandle();
     touchManager.update();
+    displayManager.tick();   // Ring pulse animation
 
     if (touchManager.wasTapped() && displayManager.getState() == DisplayState::Active) {
         dismissCurrentReminder();
