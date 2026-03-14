@@ -119,6 +119,15 @@ String DisplayManager::formatScheduledAt(time_t t) {
     else if (hour > 12) hour -= 12;
     snprintf(timeBuf, sizeof(timeBuf), "%d:%02d %s", hour, tm_t.tm_min, ampm);
 
+    // ≤60 min away: show "in X min"
+    long minsUntil = (long)(t - now) / 60;
+    if (minsUntil >= 0 && minsUntil <= 60) {
+        if (minsUntil <= 1) return String("in 1 min");
+        char buf[16];
+        snprintf(buf, sizeof(buf), "in %ld min", minsUntil);
+        return String(buf);
+    }
+
     // Same day?
     if (tm_t.tm_year == tm_now.tm_year && tm_t.tm_yday == tm_now.tm_yday) {
         return String("Today, ") + timeBuf;
