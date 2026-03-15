@@ -13,7 +13,7 @@ export const POST: RequestHandler = async ({ params }) => {
   }
 
   // Mark as completed
-  store.update(params.id, { status: 'completed' });
+  store.update(params.id, { status: 'completed', completed_at: new Date().toISOString() });
 
   // If recurring, create next occurrence
   if (reminder.recurrence !== 'none') {

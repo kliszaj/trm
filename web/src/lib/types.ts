@@ -10,6 +10,7 @@ export interface Reminder {
   recurrence: Recurrence;
   status: ReminderStatus;
   created_at: string;     // ISO 8601
+  completed_at?: string;  // ISO 8601, set when dismissed
 }
 
 export interface StoredReminder {
@@ -19,6 +20,7 @@ export interface StoredReminder {
   recurrence: Recurrence;
   status: ReminderStatus;
   created_at: string;     // ISO 8601
+  completed_at?: string;  // ISO 8601, set when dismissed
 }
 
 export interface CreateReminderPayload {

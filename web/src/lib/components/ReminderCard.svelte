@@ -16,13 +16,17 @@
 
   const scheduled = $derived(new Date(reminder.scheduled_at));
 
-  const timeLabel = $derived(
-    isToday(scheduled)
+  const timeLabel = $derived.by(() => {
+    if (reminder.status === 'completed' && reminder.completed_at) {
+      const completed = new Date(reminder.completed_at);
+      return `Done at ${format(completed, 'h:mm a')}`;
+    }
+    return isToday(scheduled)
       ? `Today, ${format(scheduled, 'h:mm a')}`
       : isTomorrow(scheduled)
         ? `Tomorrow, ${format(scheduled, 'h:mm a')}`
-        : format(scheduled, "EEE d MMM, h:mm a")
-  );
+        : format(scheduled, "EEE d MMM, h:mm a");
+  });
 
   let deleting = $state(false);
 
