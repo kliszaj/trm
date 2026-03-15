@@ -8,6 +8,8 @@ DisplayManager displayManager;
 
 static LGFX tft;
 
+static const char* ANIM_FILE = "/anim_eye.bin";
+
 // Palette (RGB888 for LovyanGFX drawing APIs)
 static const uint32_t COLOR_BG           = 0x000000;  // black
 static const uint32_t COLOR_TEXT         = 0xFFFFFF;  // white
@@ -28,8 +30,13 @@ bool DisplayManager::begin() {
     tft.fillScreen(COLOR_BG);
     tft.setTextDatum(middle_center);
     tft.setFileStorage(LittleFS);  // VLW fonts live on LittleFS
+    _lastActivityMs = millis();
     Serial.println("[display] Initialized");
     return true;
+}
+
+void DisplayManager::resetInactivityTimer() {
+    _lastActivityMs = millis();
 }
 
 // ── Boot screen ───────────────────────────────────────────────────────────────
@@ -43,6 +50,7 @@ void DisplayManager::showBoot() {
 void DisplayManager::showIdle(const Reminder* next) {
     circleWipeIn(COLOR_BG);
     _state = DisplayState::Idle;
+    _lastActivityMs = millis();
     drawIdleContent(next);
 }
 
@@ -124,9 +132,73 @@ void DisplayManager::showConfirmation() {
     // No blocking delay here — caller is responsible for hold timing
 }
 
+// ── Screensaver ──────────────────────────────────────────────────────────────
+void DisplayManager::showScreensaver() {
+    // Load animation header from file
+    fs::File f = LittleFS.open(ANIM_FILE, "r");
+    if (!f) {
+        Serial.println("[display] Screensaver animation not found");
+        return;
+    }
+
+    f.read((uint8_t*)&_animFrameCount, 2);
+    f.read((uint8_t*)&_animFrameW, 2);
+    f.read((uint8_t*)&_animFrameH, 2);
+
+    if (_animFrameCount > 32) _animFrameCount = 32;
+
+    for (int i = 0; i < _animFrameCount; i++) {
+        f.read((uint8_t*)&_animDurations[i], 2);
+    }
+
+    // Data offset = 6 bytes header + 2 bytes per frame duration
+    _animDataOffset = 6 + _animFrameCount * 2;
+    f.close();
+
+    circleWipeIn(COLOR_BG);
+    _state = DisplayState::Screensaver;
+    _animCurrentFrame = 0;
+    _animLastFrameMs = 0;  // force first frame to draw immediately
+    Serial.printf("[display] Screensaver started (%d frames, %dx%d)\n",
+                  _animFrameCount, _animFrameW, _animFrameH);
+}
+
+void DisplayManager::drawAnimFrame(int frameIndex) {
+    fs::File f = LittleFS.open(ANIM_FILE, "r");
+    if (!f) return;
+
+    uint32_t frameBytes = _animFrameW * _animFrameH * 2;
+    uint32_t offset = _animDataOffset + frameIndex * frameBytes;
+    f.seek(offset);
+
+    // Read and draw line by line, scaling 2x (120->240)
+    uint16_t lineBuf[120];
+    uint16_t scaledBuf[240];
+
+    for (int y = 0; y < _animFrameH; y++) {
+        if (f.read((uint8_t*)lineBuf, _animFrameW * 2) != (int)(_animFrameW * 2)) break;
+        // Scale each pixel 2x horizontally
+        for (int x = 0; x < _animFrameW; x++) {
+            scaledBuf[x * 2]     = lineBuf[x];
+            scaledBuf[x * 2 + 1] = lineBuf[x];
+        }
+        // Push same row twice for 2x vertical scaling
+        tft.pushImage(0, y * 2,     240, 1, scaledBuf);
+        tft.pushImage(0, y * 2 + 1, 240, 1, scaledBuf);
+    }
+    f.close();
+}
+
 // ── Tick (call from loop) ─────────────────────────────────────────────────────
 void DisplayManager::tick() {
-    // Reserved for future animations
+    if (_state == DisplayState::Screensaver) {
+        unsigned long now = millis();
+        if (_animLastFrameMs == 0 || (now - _animLastFrameMs) >= _animDurations[_animCurrentFrame]) {
+            drawAnimFrame(_animCurrentFrame);
+            _animLastFrameMs = now;
+            _animCurrentFrame = (_animCurrentFrame + 1) % _animFrameCount;
+        }
+    }
 }
 
 // ── Circle wipe transition ────────────────────────────────────────────────────

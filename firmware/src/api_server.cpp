@@ -12,8 +12,8 @@ static WebServer server(80);
 
 // Refresh idle screen if currently showing it (called after data changes)
 static void refreshDisplayIfIdle() {
-    if (displayManager.getState() == DisplayState::Idle) {
-        // Find next pending reminder to show
+    DisplayState st = displayManager.getState();
+    if (st == DisplayState::Idle || st == DisplayState::Screensaver) {
         const Reminder* next = nullptr;
         time_t earliest = LONG_MAX;
         for (const auto& r : reminderStore.getAll()) {
@@ -22,7 +22,11 @@ static void refreshDisplayIfIdle() {
                 next = &r;
             }
         }
-        displayManager.showIdle(next);
+        if (next) {
+            displayManager.showIdle(next);
+        } else {
+            if (st != DisplayState::Screensaver) displayManager.showScreensaver();
+        }
     }
 }
 

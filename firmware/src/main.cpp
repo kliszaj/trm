@@ -11,6 +11,7 @@ static const uint32_t CONFIRM_HOLD_MS = 3000;
 #include "touch_manager.h"
 
 static unsigned long lastPollMs = 0;
+static const uint32_t SCREENSAVER_TIMEOUT_MS = 120000;  // 2 minutes
 
 static Reminder* getNextActiveReminder() {
     Reminder* earliest = nullptr;
@@ -47,13 +48,25 @@ static void checkAndFireReminders() {
 
     Reminder* active = getNextActiveReminder();
     if (active) {
-        // Show active screen if something just fired, or if we're not already showing it
-        // (handles boot with pre-existing active reminders)
-        if (fired || displayManager.getState() != DisplayState::Active) {
+        if (fired || (displayManager.getState() != DisplayState::Active)) {
             displayManager.showActive(*active);
+            displayManager.resetInactivityTimer();
         }
-    } else if (displayManager.getState() != DisplayState::Active) {
-        displayManager.showIdle(getNextPendingReminder());
+    } else {
+        DisplayState st = displayManager.getState();
+        const Reminder* nextPending = getNextPendingReminder();
+        if (nextPending) {
+            // Have upcoming reminders — show idle if not already there
+            if (st != DisplayState::Idle && st != DisplayState::Screensaver) {
+                displayManager.showIdle(nextPending);
+                displayManager.resetInactivityTimer();
+            }
+        } else {
+            // No reminders at all — go to screensaver
+            if (st != DisplayState::Screensaver) {
+                displayManager.showScreensaver();
+            }
+        }
     }
 }
 
@@ -76,7 +89,12 @@ static void dismissCurrentReminder() {
     if (nextActive) {
         displayManager.showActive(*nextActive);
     } else {
-        displayManager.showIdle(getNextPendingReminder());
+        const Reminder* nextPending = getNextPendingReminder();
+        if (nextPending) {
+            displayManager.showIdle(nextPending);
+        } else {
+            displayManager.showScreensaver();
+        }
     }
 }
 
@@ -113,10 +131,21 @@ void loop() {
     displayManager.tick();
 
     if (touchManager.wasTapped()) {
-        Serial.printf("[main] Tap detected, display state=%d\n", (int)displayManager.getState());
-        if (displayManager.getState() == DisplayState::Active) {
-            Serial.println("[main] Dismissing reminder");
+        DisplayState st = displayManager.getState();
+        displayManager.resetInactivityTimer();
+
+        if (st == DisplayState::Screensaver) {
+            // Exit screensaver back to idle
+            displayManager.showIdle(getNextPendingReminder());
+        } else if (st == DisplayState::Active) {
             dismissCurrentReminder();
+        }
+    }
+
+    // Enter screensaver after inactivity on idle screen
+    if (displayManager.getState() == DisplayState::Idle) {
+        if (displayManager.isInactiveFor(SCREENSAVER_TIMEOUT_MS)) {
+            displayManager.showScreensaver();
         }
     }
 
