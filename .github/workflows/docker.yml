@@ -26,5 +26,3 @@ jobs:
           context: ./web
           push: true
           tags: kliszaj/trm-web:latest
-          build-args: |
-            VITE_ESP32_URL=${{ secrets.VITE_ESP32_URL }}

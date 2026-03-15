@@ -279,7 +279,7 @@ String DisplayManager::formatScheduledAt(time_t t) {
     }
 
     if (tm_t.tm_year == tm_now.tm_year && tm_t.tm_yday == tm_now.tm_yday) {
-        return String("Today, ") + timeBuf;
+        return String(timeBuf);
     }
     time_t tomorrow = now + 86400;
     struct tm tm_tom;

@@ -1,8 +1,8 @@
 #pragma once
 
 // ── Wi-Fi ─────────────────────────────────────────────────────────────────────
-#define WIFI_SSID "YourSSID"
-#define WIFI_PASS "YourPassword"
+#define WIFI_SSID "YOUR_WIFI_SSID"
+#define WIFI_PASS "YOUR_WIFI_PASS"
 
 // ── Time ──────────────────────────────────────────────────────────────────────
 // POSIX TZ string for Europe/Stockholm (CET-1 / CEST with DST)
@@ -12,10 +12,9 @@
 // ── Hostname / mDNS ───────────────────────────────────────────────────────────
 #define HOSTNAME "trm"
 
-// ── Reminders ─────────────────────────────────────────────────────────────────
-#define MAX_REMINDERS     50
-#define REMINDERS_PATH    "/reminders.json"
-#define POLL_INTERVAL_MS  30000   // 30 seconds
+// ── Web App (source of truth) ─────────────────────────────────────────────
+#define WEB_APP_URL       "http://10.0.0.240:8082"  // Unraid server
+#define SYNC_INTERVAL_MS  300000   // 5 minutes
 
 // ── Touch (CHSC6X, I2C on Seeed Round Display) ───────────────────────────────
 #define TOUCH_SDA  6    // D4

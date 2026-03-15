@@ -1,6 +1,21 @@
 #pragma once
 #include <Arduino.h>
-#include "reminder_store.h"
+#include <vector>
+#include "reminder_types.h"
+
+// Minimal reminder data for display purposes
+enum class ReminderStatus { Pending, Active, Completed };
+enum class Recurrence { None, Daily, Weekly, Weekdays };
+
+struct Reminder {
+    String id;
+    ReminderType type;
+    time_t scheduled_at;
+    Recurrence recurrence;
+    ReminderStatus status;
+    time_t created_at;
+    String label() const { return String(getTypeInfo(type)->label); }
+};
 
 enum class DisplayState { Boot, Idle, Active, Confirmation, Screensaver };
 

@@ -12,6 +12,15 @@ export interface Reminder {
   created_at: string;     // ISO 8601
 }
 
+export interface StoredReminder {
+  id: string;
+  type: ReminderType;
+  scheduled_at: string;   // ISO 8601
+  recurrence: Recurrence;
+  status: ReminderStatus;
+  created_at: string;     // ISO 8601
+}
+
 export interface CreateReminderPayload {
   type: ReminderType;
   scheduled_at: string;

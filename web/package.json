@@ -22,7 +22,7 @@
 		"vite": "^7.3.1"
 	},
 	"dependencies": {
-		"@sveltejs/adapter-static": "^3.0.10",
+		"@sveltejs/adapter-node": "^5.5.4",
 		"date-fns": "^4.1.0",
 		"uuid": "^13.0.0"
 	}

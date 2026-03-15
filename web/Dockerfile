@@ -1,24 +1,14 @@
-# ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:20-alpine AS build
-
 WORKDIR /app
-
 COPY package*.json ./
 RUN npm ci
-
 COPY . .
-
-# ESP32 URL is baked into the Vite bundle at build time
-ARG VITE_ESP32_URL=http://trm.local
-ENV VITE_ESP32_URL=$VITE_ESP32_URL
-
-# Production build (VITE_USE_MOCK is not set, so real API is used)
 RUN npm run build
 
-# ── Stage 2: Serve ────────────────────────────────────────────────────────────
-FROM nginxinc/nginx-unprivileged:alpine
-
-COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 8080
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=build /app/build ./build
+COPY --from=build /app/package.json ./
+COPY --from=build /app/node_modules ./node_modules
+EXPOSE 3000
+CMD ["node", "build"]

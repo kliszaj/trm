@@ -1,6 +1,12 @@
 services:
   trm-web:
     image: kliszaj/trm-web:latest
-    ports:
-      - "8080:8080"
+    container_name: trm-web
     restart: unless-stopped
+    ports:
+      - "8082:3000"
+    volumes:
+      - /mnt/user/appdata/trm/data:/app/data
+    environment:
+      - ESP32_URL=http://10.0.0.111
+      - TZ=Europe/Stockholm

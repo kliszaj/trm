@@ -1,101 +1,95 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include "config.h"
-
-static const uint32_t CONFIRM_HOLD_MS = 3000;
 #include "wifi_manager.h"
 #include "time_manager.h"
-#include "reminder_store.h"
-#include "api_server.h"
 #include "display_manager.h"
 #include "touch_manager.h"
+#include "sync_client.h"
 
-static unsigned long lastPollMs = 0;
-static const uint32_t SCREENSAVER_TIMEOUT_MS = 120000;  // 2 minutes
+static const uint32_t CONFIRM_HOLD_MS = 3000;
+static const uint32_t SCREENSAVER_TIMEOUT_MS = 120000;
 
-static Reminder* getNextActiveReminder() {
-    Reminder* earliest = nullptr;
-    for (auto& r : const_cast<std::vector<Reminder>&>(reminderStore.getAll())) {
-        if (r.status == ReminderStatus::Active) {
-            if (!earliest || r.scheduled_at < earliest->scheduled_at)
-                earliest = &r;
+static unsigned long lastSyncMs = 0;
+
+// Currently displayed active reminder ID (so we know what to dismiss)
+static String activeReminderId;
+
+static void syncFromServer() {
+    std::vector<RemoteReminder> active;
+    if (syncClient.fetchActive(active) && !active.empty()) {
+        // Show first active reminder
+        const RemoteReminder& r = active[0];
+        activeReminderId = r.id;
+        if (r.type != ReminderType::Unknown) {
+            Reminder displayR;
+            displayR.id = r.id;
+            displayR.type = r.type;
+            displayR.scheduled_at = 0;
+            displayR.recurrence = Recurrence::None;
+            displayR.status = ReminderStatus::Active;
+            displayR.created_at = 0;
+
+            if (displayManager.getState() != DisplayState::Active) {
+                displayManager.showActive(displayR);
+            }
         }
-    }
-    return earliest;
-}
-
-static const Reminder* getNextPendingReminder() {
-    const Reminder* earliest = nullptr;
-    time_t t = LONG_MAX;
-    for (const auto& r : reminderStore.getAll()) {
-        if (r.status == ReminderStatus::Pending && r.scheduled_at < t) {
-            t = r.scheduled_at;
-            earliest = &r;
-        }
-    }
-    return earliest;
-}
-
-static void checkAndFireReminders() {
-    time_t now = time(nullptr);
-    bool fired = false;
-    for (auto& r : const_cast<std::vector<Reminder>&>(reminderStore.getAll())) {
-        if (r.status == ReminderStatus::Pending && r.scheduled_at <= now) {
-            reminderStore.updateStatus(r.id, ReminderStatus::Active);
-            fired = true;
-        }
+        displayManager.resetInactivityTimer();
+        return;
     }
 
-    Reminder* active = getNextActiveReminder();
-    if (active) {
-        if (fired || (displayManager.getState() != DisplayState::Active)) {
-            displayManager.showActive(*active);
+    // No active reminders — show next pending or screensaver
+    activeReminderId = "";
+    RemoteReminder nextPending;
+    if (syncClient.fetchNextPending(nextPending)) {
+        Reminder displayR;
+        displayR.id = nextPending.id;
+        displayR.type = nextPending.type;
+        // Parse ISO 8601 to time_t for display formatting
+        struct tm tm = {};
+        sscanf(nextPending.scheduled_at.c_str(),
+               "%d-%d-%dT%d:%d:%d",
+               &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
+               &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
+        tm.tm_year -= 1900;
+        tm.tm_mon -= 1;
+        displayR.scheduled_at = mktime(&tm);
+        displayR.recurrence = Recurrence::None;
+        displayR.status = ReminderStatus::Pending;
+        displayR.created_at = 0;
+
+        DisplayState st = displayManager.getState();
+        if (st != DisplayState::Idle && st != DisplayState::Screensaver) {
+            displayManager.showIdle(&displayR);
             displayManager.resetInactivityTimer();
+        } else if (st == DisplayState::Idle) {
+            // Refresh idle content
+            displayManager.showIdle(&displayR);
         }
     } else {
-        DisplayState st = displayManager.getState();
-        const Reminder* nextPending = getNextPendingReminder();
-        if (nextPending) {
-            // Have upcoming reminders — show idle if not already there
-            if (st != DisplayState::Idle && st != DisplayState::Screensaver) {
-                displayManager.showIdle(nextPending);
-                displayManager.resetInactivityTimer();
-            }
-        } else {
-            // No reminders at all — go to screensaver
-            if (st != DisplayState::Screensaver) {
-                displayManager.showScreensaver();
-            }
+        // No reminders at all — screensaver
+        if (displayManager.getState() != DisplayState::Screensaver) {
+            displayManager.showScreensaver();
         }
     }
 }
 
 static void dismissCurrentReminder() {
-    Reminder* active = getNextActiveReminder();
-    if (!active) return;
+    if (activeReminderId.isEmpty()) return;
 
-    String id = active->id;  // copy before modifying store
+    String id = activeReminderId;
 
-    // Show checkmark immediately for instant feedback
+    // Show checkmark immediately
     displayManager.showConfirmation();
 
-    // Update storage while checkmark is visible (hides LittleFS latency)
-    reminderStore.updateStatus(id, ReminderStatus::Completed);
+    // Tell web app to dismiss
+    syncClient.dismiss(id);
 
-    // Hold checkmark for 3 seconds
+    // Hold checkmark
     delay(CONFIRM_HOLD_MS);
 
-    Reminder* nextActive = getNextActiveReminder();
-    if (nextActive) {
-        displayManager.showActive(*nextActive);
-    } else {
-        const Reminder* nextPending = getNextPendingReminder();
-        if (nextPending) {
-            displayManager.showIdle(nextPending);
-        } else {
-            displayManager.showScreensaver();
-        }
-    }
+    // Re-sync to show next state
+    syncFromServer();
 }
 
 void setup() {
@@ -103,7 +97,6 @@ void setup() {
     delay(500);
     Serial.println("\n[boot] that reminds me... starting");
 
-    // LittleFS MUST init before display (fonts/images live on flash)
     if (!LittleFS.begin(true)) {
         Serial.println("[boot] LittleFS mount failed");
     }
@@ -116,41 +109,49 @@ void setup() {
     }
 
     timeSyncInit();
-    reminderStore.begin();
-    apiServerBegin();
     touchManager.begin();
+    syncClient.beginSyncServer();
 
-    checkAndFireReminders();
+    // Initial sync from web app
+    syncFromServer();
+    lastSyncMs = millis();
 
     Serial.println("[boot] Ready");
 }
 
 void loop() {
-    apiServerHandle();
+    syncClient.handleSyncServer();
     touchManager.update();
     displayManager.tick();
 
+    // Handle sync nudge from web app
+    if (syncClient.wasSyncRequested()) {
+        syncFromServer();
+        lastSyncMs = millis();
+    }
+
+    // Handle touch
     if (touchManager.wasTapped()) {
         DisplayState st = displayManager.getState();
         displayManager.resetInactivityTimer();
 
         if (st == DisplayState::Screensaver) {
-            // Exit screensaver back to idle
-            displayManager.showIdle(getNextPendingReminder());
+            syncFromServer();
         } else if (st == DisplayState::Active) {
             dismissCurrentReminder();
         }
     }
 
-    // Enter screensaver after inactivity on idle screen
+    // Screensaver timeout
     if (displayManager.getState() == DisplayState::Idle) {
         if (displayManager.isInactiveFor(SCREENSAVER_TIMEOUT_MS)) {
             displayManager.showScreensaver();
         }
     }
 
-    if (millis() - lastPollMs >= POLL_INTERVAL_MS) {
-        lastPollMs = millis();
-        checkAndFireReminders();
+    // Periodic sync (safety net)
+    if (millis() - lastSyncMs >= SYNC_INTERVAL_MS) {
+        lastSyncMs = millis();
+        syncFromServer();
     }
 }
