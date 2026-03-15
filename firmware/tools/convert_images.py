@@ -74,6 +74,7 @@ if __name__ == "__main__":
         ("take_out_trash.png", "img_take_out_trash", 0.65),
         ("logo.png",           "img_logo",           0.65),
         ("checkmark.png",      "img_checkmark",      0.65),
+        ("pay_bills.png",      "img_pay_bills",      0.65),
     ]
 
     print(f"Converting images -> {data_dir.resolve()}\n")

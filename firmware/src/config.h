@@ -14,7 +14,7 @@
 
 // ── Web App (source of truth) ─────────────────────────────────────────────
 #define WEB_APP_URL       "http://10.0.0.240:8082"  // Unraid server
-#define SYNC_INTERVAL_MS  300000   // 5 minutes
+#define SYNC_INTERVAL_MS  30000    // 30 seconds
 
 // ── Touch (CHSC6X, I2C on Seeed Round Display) ───────────────────────────────
 #define TOUCH_SDA  6    // D4

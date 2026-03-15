@@ -9,6 +9,7 @@ enum class ReminderType {
     WaterPlants,
     EatVitamins,
     TakeOutTrash,
+    PayBills,
     Unknown
 };
 
@@ -24,8 +25,9 @@ static const TypeInfo REMINDER_TYPES[] = {
     { "water_plants",  "Water plants",  "/img_water_plants.bin",   0xF8B352 }, // orange
     { "eat_vitamins",  "Eat vitamins",  "/img_eat_vitamins.bin",   0x41AEFF }, // blue
     { "take_out_trash","Take out trash","/img_take_out_trash.bin", 0x7261F3 }, // purple
+    { "pay_bills",     "Pay bills",     "/img_pay_bills.bin",      0xE94E51 }, // red
 };
-static const int REMINDER_TYPE_COUNT = 4;
+static const int REMINDER_TYPE_COUNT = 5;
 
 inline const TypeInfo* getTypeInfo(ReminderType t) {
     int idx = (int)t;

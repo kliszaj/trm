@@ -1,6 +1,6 @@
 export type ReminderStatus = 'pending' | 'active' | 'completed';
 export type Recurrence = 'none' | 'daily' | 'weekly' | 'weekdays';
-export type ReminderType = 'feed_evie' | 'water_plants' | 'eat_vitamins' | 'take_out_trash';
+export type ReminderType = 'feed_evie' | 'water_plants' | 'eat_vitamins' | 'take_out_trash' | 'pay_bills';
 
 export interface Reminder {
   id: string;

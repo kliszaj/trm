@@ -11,6 +11,7 @@ export const REMINDER_TYPES: ReminderTypeMeta[] = [
   { id: 'water_plants',   label: 'Water plants',   color: '#F8B352' },
   { id: 'eat_vitamins',   label: 'Eat vitamins',   color: '#41AEFF' },
   { id: 'take_out_trash', label: 'Take out trash', color: '#7261F3' },
+  { id: 'pay_bills',     label: 'Pay bills',      color: '#E94E51' },
 ];
 
 export function getTypeMeta(id: ReminderType): ReminderTypeMeta {

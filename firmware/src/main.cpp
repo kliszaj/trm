@@ -15,7 +15,24 @@ static unsigned long lastSyncMs = 0;
 // Currently displayed active reminder ID (so we know what to dismiss)
 static String activeReminderId;
 
-static void syncFromServer() {
+// Parse ISO 8601 UTC string to time_t
+static time_t parseISO8601(const String& iso) {
+    struct tm tm = {};
+    sscanf(iso.c_str(), "%d-%d-%dT%d:%d:%d",
+           &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
+           &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
+    tm.tm_year -= 1900;
+    tm.tm_mon -= 1;
+    // mktime assumes local time; temporarily switch to UTC
+    setenv("TZ", "UTC0", 1); tzset();
+    time_t t = mktime(&tm);
+    setenv("TZ", TZ_STRING, 1); tzset();
+    return t;
+}
+
+// showIdle: if true, show idle screen for pending reminders (tap)
+//           if false, only break out for active reminders (periodic/nudge)
+static void syncFromServer(bool showIdle) {
     std::vector<RemoteReminder> active;
     if (syncClient.fetchActive(active) && !active.empty()) {
         // Show first active reminder
@@ -38,34 +55,23 @@ static void syncFromServer() {
         return;
     }
 
-    // No active reminders — show next pending or screensaver
+    // No active reminders
     activeReminderId = "";
+
+    if (!showIdle) return;  // Background sync: don't touch screen
+
     RemoteReminder nextPending;
     if (syncClient.fetchNextPending(nextPending)) {
         Reminder displayR;
         displayR.id = nextPending.id;
         displayR.type = nextPending.type;
-        // Parse ISO 8601 to time_t for display formatting
-        struct tm tm = {};
-        sscanf(nextPending.scheduled_at.c_str(),
-               "%d-%d-%dT%d:%d:%d",
-               &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
-               &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
-        tm.tm_year -= 1900;
-        tm.tm_mon -= 1;
-        displayR.scheduled_at = mktime(&tm);
+        displayR.scheduled_at = parseISO8601(nextPending.scheduled_at);
         displayR.recurrence = Recurrence::None;
         displayR.status = ReminderStatus::Pending;
         displayR.created_at = 0;
 
-        DisplayState st = displayManager.getState();
-        if (st != DisplayState::Idle && st != DisplayState::Screensaver) {
-            displayManager.showIdle(&displayR);
-            displayManager.resetInactivityTimer();
-        } else if (st == DisplayState::Idle) {
-            // Refresh idle content
-            displayManager.showIdle(&displayR);
-        }
+        displayManager.showIdle(&displayR);
+        displayManager.resetInactivityTimer();
     } else {
         // No reminders at all — screensaver
         if (displayManager.getState() != DisplayState::Screensaver) {
@@ -88,8 +94,8 @@ static void dismissCurrentReminder() {
     // Hold checkmark
     delay(CONFIRM_HOLD_MS);
 
-    // Re-sync to show next state
-    syncFromServer();
+    // Re-sync to show next state (foreground — show idle if no more active)
+    syncFromServer(true);
 }
 
 void setup() {
@@ -112,8 +118,8 @@ void setup() {
     touchManager.begin();
     syncClient.beginSyncServer();
 
-    // Initial sync from web app
-    syncFromServer();
+    // Boot into screensaver — active reminders will show via sync/nudge
+    displayManager.showScreensaver();
     lastSyncMs = millis();
 
     Serial.println("[boot] Ready");
@@ -124,9 +130,9 @@ void loop() {
     touchManager.update();
     displayManager.tick();
 
-    // Handle sync nudge from web app
+    // Handle sync nudge from web app (background — only show active)
     if (syncClient.wasSyncRequested()) {
-        syncFromServer();
+        syncFromServer(false);
         lastSyncMs = millis();
     }
 
@@ -136,7 +142,8 @@ void loop() {
         displayManager.resetInactivityTimer();
 
         if (st == DisplayState::Screensaver) {
-            syncFromServer();
+            // Tap on screensaver: show idle (foreground sync)
+            syncFromServer(true);
         } else if (st == DisplayState::Active) {
             dismissCurrentReminder();
         }
@@ -149,9 +156,9 @@ void loop() {
         }
     }
 
-    // Periodic sync (safety net)
+    // Periodic sync (background — only break out for active reminders)
     if (millis() - lastSyncMs >= SYNC_INTERVAL_MS) {
         lastSyncMs = millis();
-        syncFromServer();
+        syncFromServer(false);
     }
 }

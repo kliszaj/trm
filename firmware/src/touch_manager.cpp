@@ -1,6 +1,7 @@
 #include "touch_manager.h"
 #include "config.h"
 #include <Wire.h>
+#include "esp_log.h"
 
 TouchManager touchManager;
 
@@ -10,6 +11,9 @@ static const uint8_t CHSC6X_READ_LEN  = 5;
 static const int     TOUCH_INT_PIN    = 20;  // D7 = GPIO20
 
 bool TouchManager::begin() {
+    // Suppress noisy I2C error logs from Wire (touch reads fail when no touch)
+    esp_log_level_set("Wire", ESP_LOG_NONE);
+
     pinMode(TOUCH_INT_PIN, INPUT_PULLUP);
     Wire.begin(TOUCH_SDA, TOUCH_SCL);
 
