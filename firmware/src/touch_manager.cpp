@@ -4,40 +4,46 @@
 
 TouchManager touchManager;
 
-// CST816S I2C address
-static const uint8_t CST816S_ADDR  = 0x15;
-static const uint8_t REG_GESTURE   = 0x01;
-static const uint8_t REG_FINGER    = 0x02;
-static const uint8_t REG_X_H       = 0x03;
+// CHSC6X touch controller on Seeed Round Display
+static const uint8_t CHSC6X_ADDR      = 0x2e;
+static const uint8_t CHSC6X_READ_LEN  = 5;
+static const int     TOUCH_INT_PIN    = 20;  // D7 = GPIO20
 
 bool TouchManager::begin() {
+    pinMode(TOUCH_INT_PIN, INPUT_PULLUP);
     Wire.begin(TOUCH_SDA, TOUCH_SCL);
-    // Quick check: try to read a byte from CST816S
-    Wire.beginTransmission(CST816S_ADDR);
-    uint8_t err = Wire.endTransmission();
-    if (err != 0) {
-        Serial.printf("[touch] CST816S not found (err=%d)\n", err);
-        return false;
+
+    // Warm up I2C bus — scan all addresses (this reliably wakes the CHSC6X)
+    for (uint8_t addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
+        Wire.endTransmission();
     }
-    Serial.println("[touch] CST816S initialized");
-    return true;
+
+    Wire.beginTransmission(CHSC6X_ADDR);
+    uint8_t err = Wire.endTransmission();
+    _available = (err == 0);
+    Serial.printf("[touch] CHSC6X %s (0x%02X)\n", _available ? "OK" : "not found", CHSC6X_ADDR);
+    return _available;
 }
 
 void TouchManager::update() {
-    // Poll finger count register
-    Wire.beginTransmission(CST816S_ADDR);
-    Wire.write(REG_FINGER);
-    if (Wire.endTransmission(false) != 0) return;
+    if (!_available) return;
 
-    Wire.requestFrom(CST816S_ADDR, (uint8_t)1);
-    if (!Wire.available()) return;
-    uint8_t fingers = Wire.read() & 0x0F;
+    uint8_t buf[CHSC6X_READ_LEN] = {0};
+    uint8_t len = Wire.requestFrom(CHSC6X_ADDR, CHSC6X_READ_LEN);
+    if (len == CHSC6X_READ_LEN) {
+        Wire.readBytes(buf, len);
+    } else {
+        while (Wire.available()) Wire.read();
+        return;
+    }
 
-    if (fingers > 0) {
+    if (buf[0] == 0x01) {
         uint32_t now = millis();
         if (!_tapped && (now - _lastTouchTime) > DEBOUNCE_MS) {
             _tapped = true;
             _lastTouchTime = now;
+            Serial.println("[touch] TAP");
         }
     }
 }

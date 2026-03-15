@@ -15,14 +15,11 @@ public:
     DisplayState getState() const { return _state; }
 
 private:
-    DisplayState _state      = DisplayState::Boot;
-    uint32_t     _lastPulseMs = 0;
-    bool         _pulseHigh   = false;
+    DisplayState _state = DisplayState::Boot;
 
-    void circleWipeIn(uint16_t color, uint16_t steps = 20);
-    void drawImageFromFS(const char* path, uint16_t bgColor);
+    void circleWipeIn(uint32_t color, uint16_t steps = 20);
+    void drawImageFromFS(const char* path, uint32_t bgColor, bool halfSize = false);
     void drawIdleContent(const Reminder* next);
-    void drawActiveRing(bool high);
     String formatScheduledAt(time_t t);
     void wrapText(const String& text, int maxChars, std::vector<String>& lines);
 };

@@ -16,15 +16,14 @@ struct TypeInfo {
     const char* id;       // used in API JSON,  e.g. "feed_evie"
     const char* label;    // shown on idle screen, e.g. "Feed Evie"
     const char* imgFile;  // LittleFS path to RGB565 binary, e.g. "/img_feed_evie.bin"
-    uint16_t    bgColor;  // RGB565 background color for active screen
+    uint32_t    bgColor;  // RGB888 background color for active screen (LovyanGFX)
 };
 
-// RGB565: ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 static const TypeInfo REMINDER_TYPES[] = {
-    { "feed_evie",     "Feed Evie",     "/img_feed_evie.bin",      0xEA71 }, // #EC4E89 pink
-    { "water_plants",  "Water plants",  "/img_water_plants.bin",   0xFD8A }, // #F8B352 orange
-    { "eat_vitamins",  "Eat vitamins",  "/img_eat_vitamins.bin",   0x457F }, // #41AEFF blue
-    { "take_out_trash","Take out trash","/img_take_out_trash.bin", 0x731E }, // #7261F3 purple
+    { "feed_evie",     "Feed Evie",     "/img_feed_evie.bin",      0xEC4E89 }, // pink
+    { "water_plants",  "Water plants",  "/img_water_plants.bin",   0xF8B352 }, // orange
+    { "eat_vitamins",  "Eat vitamins",  "/img_eat_vitamins.bin",   0x41AEFF }, // blue
+    { "take_out_trash","Take out trash","/img_take_out_trash.bin", 0x7261F3 }, // purple
 };
 static const int REMINDER_TYPE_COUNT = 4;
 

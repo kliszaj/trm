@@ -20,7 +20,7 @@ except ImportError:
     print("Missing dependency — run:  pip install freetype-py")
     sys.exit(1)
 
-# Printable ASCII (space → ~). Covers all reminder names and labels.
+# Printable ASCII (space -> ~). Covers all reminder names and labels.
 CHARSET = [chr(c) for c in range(0x20, 0x7F)]
 
 
@@ -57,30 +57,30 @@ def convert(font_path: str, size_px: int, output_path: str):
     maxDescent = max(g["height"] - g["bitmap_top"]  for g in non_empty) if non_empty else -descent
 
     with open(output_path, "wb") as f:
-        # ── File header (7 × 4-byte big-endian) ──────────────────────────
-        f.write(struct.pack(">I", len(glyphs)))
-        f.write(struct.pack(">I", yAdvance))
-        f.write(struct.pack(">I", spaceWidth))
-        f.write(struct.pack(">i", ascent))
-        f.write(struct.pack(">i", descent))
-        f.write(struct.pack(">i", maxAscent))
-        f.write(struct.pack(">i", maxDescent))
+        # ── File header (6 × 4-byte big-endian) — LovyanGFX VLW format ──
+        f.write(struct.pack(">I", len(glyphs)))   # [0] glyph count
+        f.write(struct.pack(">I", 11))             # [1] version (Processing compat)
+        f.write(struct.pack(">I", yAdvance))       # [2] font size / yAdvance
+        f.write(struct.pack(">I", 0))              # [3] unused
+        f.write(struct.pack(">i", ascent))         # [4] ascent
+        f.write(struct.pack(">i", abs(descent)))   # [5] descent (positive)
 
-        # ── Glyph headers (6 × 4-byte big-endian per glyph) ──────────────
+        # ── Glyph headers (7 × 4-byte big-endian per glyph) ──────────────
         for g in glyphs:
-            f.write(struct.pack(">I", g["code"]))
-            f.write(struct.pack(">I", g["height"]))
-            f.write(struct.pack(">I", g["width"]))
-            f.write(struct.pack(">I", g["xAdvance"]))
-            f.write(struct.pack(">i", g["xOffset"]))
-            f.write(struct.pack(">i", g["yOffset"]))
+            f.write(struct.pack(">I", g["code"]))      # [0] unicode
+            f.write(struct.pack(">I", g["height"]))     # [1] height
+            f.write(struct.pack(">I", g["width"]))      # [2] width
+            f.write(struct.pack(">I", g["xAdvance"]))   # [3] xAdvance
+            f.write(struct.pack(">i", g["bitmap_top"])) # [4] dY (baseline offset, positive = above)
+            f.write(struct.pack(">i", g["xOffset"]))    # [5] dX
+            f.write(struct.pack(">I", 0))               # [6] padding
 
         # ── Bitmap data (8-bit grayscale, in same order as headers) ───────
         for g in glyphs:
             f.write(g["data"])
 
     size_kb = Path(output_path).stat().st_size / 1024
-    print(f"  ✓  {Path(output_path).name}  ({len(glyphs)} glyphs, {size_px}px, {size_kb:.1f} KB)")
+    print(f"  OK  {Path(output_path).name}  ({len(glyphs)} glyphs, {size_px}px, {size_kb:.1f} KB)")
 
 
 if __name__ == "__main__":
@@ -92,17 +92,16 @@ if __name__ == "__main__":
     # ── Conversions ───────────────────────────────────────────────────────
     # (font_file, size_px, output_name)
     conversions = [
-        ("PPMondwest-Regular.otf", 20, "PPMondwest-20"),   # "Next" label + time string
-        ("PPMondwest-Regular.otf", 36, "PPMondwest-36"),   # Reminder name (idle)
-        ("PPMondwest-Regular.otf", 42, "PPMondwest-42"),   # Reminder name (active)
+        ("PPMondwest-Bold.otf",    22, "PPMondwest-Bold-22"),  # "Next" label + time string
+        ("PPMondwest-Bold.otf",    38, "PPMondwest-Bold-38"),  # Reminder name (idle)
     ]
 
-    print(f"Converting fonts → {data_dir.resolve()}\n")
+    print(f"Converting fonts -> {data_dir.resolve()}\n")
     any_missing = False
     for font_file, size, name in conversions:
         path = fonts_dir / font_file
         if not path.exists():
-            print(f"  ✗  Not found: {path}")
+            print(f"  MISSING  Not found: {path}")
             any_missing = True
             continue
         convert(str(path), size, str(data_dir / f"{name}.vlw"))

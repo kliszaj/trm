@@ -32,8 +32,16 @@
   }
 </script>
 
-<article class="card" class:active={reminder.status === 'active'} style="--type-color: {typeMeta.color}">
-  <span class="type-dot"></span>
+<article class="card" class:active={reminder.status === 'active'} class:completed={reminder.status === 'completed'} style="--type-color: {typeMeta.color}">
+  {#if reminder.status === 'completed'}
+    <span class="check-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    </span>
+  {:else}
+    <span class="type-dot"></span>
+  {/if}
   <div class="main">
     <span class="name">{typeMeta.label}</span>
     <div class="meta">
@@ -71,6 +79,26 @@
   .card.active {
     border-color: var(--type-color);
     background: color-mix(in srgb, var(--type-color) 8%, var(--surface));
+  }
+
+  .card.completed {
+    opacity: 0.45;
+  }
+
+  .card.completed .name {
+    text-decoration: line-through;
+  }
+
+  .check-icon {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    color: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .type-dot {

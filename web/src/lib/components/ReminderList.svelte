@@ -13,9 +13,13 @@
   } = $props();
 
   const sorted = $derived(
-    [...reminders].sort(
-      (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
-    )
+    [...reminders].sort((a, b) => {
+      // Completed always sink to the bottom
+      const aDone = a.status === 'completed' ? 1 : 0;
+      const bDone = b.status === 'completed' ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+      return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+    })
   );
 </script>
 

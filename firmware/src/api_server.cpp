@@ -3,11 +3,28 @@
 #include "reminder_types.h"
 #include "recurrence.h"
 #include "time_manager.h"
+#include "display_manager.h"
 #include <WebServer.h>
 #include <ArduinoJson.h>
 #include <esp_random.h>
 
 static WebServer server(80);
+
+// Refresh idle screen if currently showing it (called after data changes)
+static void refreshDisplayIfIdle() {
+    if (displayManager.getState() == DisplayState::Idle) {
+        // Find next pending reminder to show
+        const Reminder* next = nullptr;
+        time_t earliest = LONG_MAX;
+        for (const auto& r : reminderStore.getAll()) {
+            if (r.status == ReminderStatus::Pending && r.scheduled_at < earliest) {
+                earliest = r.scheduled_at;
+                next = &r;
+            }
+        }
+        displayManager.showIdle(next);
+    }
+}
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 static void addCors() {
@@ -41,9 +58,9 @@ static String generateUUID() {
 // ── Reminder JSON serializer ──────────────────────────────────────────────────
 static void reminderToJson(JsonObject& obj, const Reminder& r) {
     obj["id"]           = r.id;
-    obj["name"]         = r.name;
+    obj["name"]         = r.label();
     obj["scheduled_at"] = ReminderStore::toISO8601(r.scheduled_at);
-    obj["type"]         = "generic";
+    obj["type"]         = getTypeInfo(r.type)->id;
     obj["recurrence"]   = ReminderStore::recurrenceToString(r.recurrence);
     obj["status"]       = ReminderStore::statusToString(r.status);
     obj["created_at"]   = ReminderStore::toISO8601(r.created_at);
@@ -98,6 +115,11 @@ static void handlePostReminder() {
     r.status       = ReminderStatus::Pending;
     r.created_at   = time(nullptr);
 
+    // If scheduled_at is in the past and reminder recurs, advance to next occurrence
+    if (r.recurrence != Recurrence::None && r.scheduled_at <= r.created_at) {
+        r.scheduled_at = nextOccurrence(r.scheduled_at, r.recurrence);
+    }
+
     if (!reminderStore.add(r)) {
         server.send(500, "application/json", "{\"error\":\"Store full or write failed\"}");
         return;
@@ -109,6 +131,7 @@ static void handlePostReminder() {
     String out;
     serializeJson(resp, out);
     server.send(201, "application/json", out);
+    refreshDisplayIfIdle();
 }
 
 // ── DELETE /api/reminders/:id ─────────────────────────────────────────────────
@@ -118,6 +141,7 @@ static void handleDeleteReminder() {
     String id  = uri.substring(uri.lastIndexOf('/') + 1);
     if (reminderStore.remove(id)) {
         server.send(204);
+        refreshDisplayIfIdle();
     } else {
         server.send(404, "application/json", "{\"error\":\"Not found\"}");
     }
@@ -166,6 +190,7 @@ static void handlePatchReminder() {
     } else {
         server.send(200);
     }
+    refreshDisplayIfIdle();
 }
 
 // ── GET /api/time ─────────────────────────────────────────────────────────────

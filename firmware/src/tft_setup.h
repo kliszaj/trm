@@ -4,12 +4,15 @@
 
 #define GC9A01_DRIVER
 
+#define TFT_RGB_ORDER TFT_RGB
+
 #define TFT_MOSI 10
+#define TFT_MISO 9
 #define TFT_SCLK 8
-#define TFT_CS   3
-#define TFT_DC   4
-#define TFT_RST  -1  // Connected to ESP32 reset
-#define TFT_BL   -1  // Backlight always on
+#define TFT_CS   3   // D1 = GPIO3
+#define TFT_DC   5   // D3 = GPIO5
+#define TFT_BL   21  // D6 = GPIO21
+#define TFT_RST  2   // D0 = GPIO2
 
 #define TFT_WIDTH  240
 #define TFT_HEIGHT 240
@@ -24,4 +27,4 @@
 
 #define SMOOTH_FONT
 
-#define SPI_FREQUENCY  40000000
+#define SPI_FREQUENCY  20000000

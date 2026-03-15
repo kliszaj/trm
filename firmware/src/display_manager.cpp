@@ -1,34 +1,33 @@
 #include "display_manager.h"
-#include <TFT_eSPI.h>
 #include <LittleFS.h>
+#include "lgfx_config.h"
 #include <vector>
 #include <time.h>
 
 DisplayManager displayManager;
 
-static TFT_eSPI tft = TFT_eSPI();
+static LGFX tft;
 
-// Palette
-static const uint16_t COLOR_BG           = TFT_BLACK;
-static const uint16_t COLOR_TEXT         = TFT_WHITE;
-static const uint16_t COLOR_MUTED        = 0x7BEF;
-static const uint16_t COLOR_BOOT_BG      = 0xFFFF;  // #FEFEFE
-static const uint16_t COLOR_CONFIRM_BG   = 0x6612;  // #61C090 green
-static const uint16_t COLOR_RING_HIGH    = 0xFD20;  // orange bright
-static const uint16_t COLOR_RING_LOW     = 0xFC00;  // orange dim
-static const uint32_t PULSE_INTERVAL_MS  = 700;
-static const uint32_t CONFIRM_HOLD_MS    = 900;     // how long checkmark stays up
+// Palette (RGB888 for LovyanGFX drawing APIs)
+static const uint32_t COLOR_BG           = 0x000000;  // black
+static const uint32_t COLOR_TEXT         = 0xFFFFFF;  // white
+static const uint32_t COLOR_MUTED        = 0x7B7B7B;  // mid grey
+static const uint32_t COLOR_BOOT_BG      = 0xFEFEFE;  // near-white
+static const uint32_t COLOR_CONFIRM_BG   = 0x61C090;  // green
 
 // Font names (VLW on LittleFS)
-static const char* FONT_SMALL  = "PPMondwest-20";
-static const char* FONT_LARGE  = "PPMondwest-36";
+static const char* FONT_SMALL  = "/PPMondwest-Bold-22.vlw";
+static const char* FONT_LARGE  = "/PPMondwest-Bold-38.vlw";
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 bool DisplayManager::begin() {
     tft.init();
-    tft.setRotation(0);
+    tft.setRotation(3);
+    tft.invertDisplay(true);   // GC9A01 on Seeed Round Display needs INVON
+    tft.setBrightness(255);
     tft.fillScreen(COLOR_BG);
-    tft.setTextDatum(MC_DATUM);
+    tft.setTextDatum(middle_center);
+    tft.setFileStorage(LittleFS);  // VLW fonts live on LittleFS
     Serial.println("[display] Initialized");
     return true;
 }
@@ -49,39 +48,59 @@ void DisplayManager::showIdle(const Reminder* next) {
 
 void DisplayManager::drawIdleContent(const Reminder* next) {
     tft.fillScreen(COLOR_BG);
-    tft.setTextDatum(MC_DATUM);
+    tft.setTextDatum(middle_center);
 
     if (!next) {
-        tft.loadFont(FONT_SMALL, LittleFS);
+        tft.loadFont(FONT_SMALL);
         tft.setTextColor(COLOR_MUTED, COLOR_BG);
         tft.drawString("No reminders", 120, 120);
         tft.unloadFont();
         return;
     }
 
-    // "Next" — small, muted, top
-    tft.loadFont(FONT_SMALL, LittleFS);
+    // "Next" — small, muted, top (20px padding from circle edge)
+    tft.loadFont(FONT_SMALL);
     tft.setTextColor(COLOR_MUTED, COLOR_BG);
-    tft.drawString("Next", 120, 72);
+    tft.drawString("Next", 120, 45);
     tft.unloadFont();
 
-    // Reminder label — large, center
-    tft.loadFont(FONT_LARGE, LittleFS);
+    // Reminder label — large, bold, centered (max 2 lines, 200px wide)
+    tft.loadFont(FONT_LARGE);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
-    std::vector<String> lines;
-    int charsPerLine = tft.textWidth("W") > 0 ? 180 / tft.textWidth("W") : 10;
-    wrapText(next->label(), charsPerLine, lines);
-    int lineH  = tft.fontHeight() + 4;
-    int startY = 120 - ((int)lines.size() - 1) * lineH / 2;
-    for (int i = 0; i < (int)lines.size(); i++) {
-        tft.drawString(lines[i], 120, startY + i * lineH);
+    const int MAX_WIDTH = 200;
+    String label = next->label();
+
+    if (tft.textWidth(label) <= MAX_WIDTH) {
+        // Fits on one line
+        tft.drawString(label, 120, 120);
+    } else {
+        // Word-wrap: find last space that keeps line 1 within MAX_WIDTH
+        int breakAt = -1;
+        for (int i = 0; i < (int)label.length(); i++) {
+            if (label.charAt(i) == ' ') {
+                String candidate = label.substring(0, i);
+                if (tft.textWidth(candidate) <= MAX_WIDTH) breakAt = i;
+                else break;
+            }
+        }
+        String line1, line2;
+        if (breakAt > 0) {
+            line1 = label.substring(0, breakAt);
+            line2 = label.substring(breakAt + 1);
+        } else {
+            line1 = label;
+            line2 = "";
+        }
+        int lineH = tft.fontHeight() + 4;
+        tft.drawString(line1, 120, 120 - lineH / 2);
+        if (line2.length() > 0) tft.drawString(line2, 120, 120 + lineH / 2);
     }
     tft.unloadFont();
 
-    // Time — small, muted, bottom
-    tft.loadFont(FONT_SMALL, LittleFS);
+    // Time — small, muted, bottom (20px padding from circle edge)
+    tft.loadFont(FONT_SMALL);
     tft.setTextColor(COLOR_MUTED, COLOR_BG);
-    tft.drawString(formatScheduledAt(next->scheduled_at), 120, 170);
+    tft.drawString(formatScheduledAt(next->scheduled_at), 120, 195);
     tft.unloadFont();
 }
 
@@ -89,20 +108,11 @@ void DisplayManager::drawIdleContent(const Reminder* next) {
 void DisplayManager::showActive(const Reminder& r) {
     const TypeInfo* info = getTypeInfo(r.type);
     circleWipeIn(info->bgColor);
-    _state        = DisplayState::Active;
-    _lastPulseMs  = millis();
-    _pulseHigh    = true;
+    _state = DisplayState::Active;
 
     tft.fillScreen(info->bgColor);
     drawImageFromFS(info->imgFile, info->bgColor);
-    drawActiveRing(true);
-}
-
-void DisplayManager::drawActiveRing(bool high) {
-    uint16_t c = high ? COLOR_RING_HIGH : COLOR_RING_LOW;
-    tft.drawCircle(120, 120, 115, c);
-    tft.drawCircle(120, 120, 114, c);
-    tft.drawCircle(120, 120, 113, c);
+    Serial.printf("[display] Active screen shown, state=%d\n", (int)_state);
 }
 
 // ── Confirmation screen ───────────────────────────────────────────────────────
@@ -111,22 +121,16 @@ void DisplayManager::showConfirmation() {
     _state = DisplayState::Confirmation;
     tft.fillScreen(COLOR_CONFIRM_BG);
     drawImageFromFS("/img_checkmark.bin", COLOR_CONFIRM_BG);
-    delay(CONFIRM_HOLD_MS);
+    // No blocking delay here — caller is responsible for hold timing
 }
 
 // ── Tick (call from loop) ─────────────────────────────────────────────────────
 void DisplayManager::tick() {
-    if (_state != DisplayState::Active) return;
-    if (millis() - _lastPulseMs < PULSE_INTERVAL_MS) return;
-    _lastPulseMs = millis();
-    _pulseHigh   = !_pulseHigh;
-    drawActiveRing(_pulseHigh);
+    // Reserved for future animations
 }
 
 // ── Circle wipe transition ────────────────────────────────────────────────────
-// Expands a filled circle from the center outward, covering the current screen.
-// Creates a smooth iris-in effect before the new content is drawn.
-void DisplayManager::circleWipeIn(uint16_t color, uint16_t steps) {
+void DisplayManager::circleWipeIn(uint32_t color, uint16_t steps) {
     const int MAX_R = 122;
     for (int i = 1; i <= (int)steps; i++) {
         int r = (MAX_R * i) / steps;
@@ -136,20 +140,46 @@ void DisplayManager::circleWipeIn(uint16_t color, uint16_t steps) {
 }
 
 // ── Image drawing (line-by-line from LittleFS, 240×240 RGB565 big-endian) ─────
-// Pixels matching 0xF81F (magenta chroma key) are skipped (transparent).
-void DisplayManager::drawImageFromFS(const char* path, uint16_t bgColor) {
-    File img = LittleFS.open(path, "r");
+// File stores big-endian RGB565. On little-endian ESP32, the uint16_t values are
+// byte-swapped, but SPI sends bytes in memory order — so the panel receives
+// correct big-endian RGB565 without any manual byte swap.
+// Transparent pixels (magenta 0xF81F BE = 0x1FF8 in LE buffer) are replaced
+// with bgColor before pushing.
+void DisplayManager::drawImageFromFS(const char* path, uint32_t bgColor, bool halfSize) {
+    fs::File img = LittleFS.open(path, "r");
     if (!img) {
         Serial.printf("[display] Image not found: %s\n", path);
         return;
     }
+    // Convert RGB888 bgColor to big-endian RGB565 stored as LE uint16_t
+    uint8_t r = (bgColor >> 16) & 0xFF;
+    uint8_t g = (bgColor >> 8) & 0xFF;
+    uint8_t b = bgColor & 0xFF;
+    uint16_t bg565 = __builtin_bswap16(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
+
+    static const uint16_t MAGENTA_LE = 0x1FF8;  // 0xF81F big-endian read as LE
     uint16_t lineBuf[240];
-    for (int y = 0; y < 240; y++) {
-        if (img.read((uint8_t*)lineBuf, 480) != 480) break;
-        for (int x = 0; x < 240; x++) {
-            lineBuf[x] = __builtin_bswap16(lineBuf[x]);
+
+    if (!halfSize) {
+        for (int y = 0; y < 240; y++) {
+            if (img.read((uint8_t*)lineBuf, 480) != 480) break;
+            for (int x = 0; x < 240; x++) {
+                if (lineBuf[x] == MAGENTA_LE) lineBuf[x] = bg565;
+            }
+            tft.pushImage(0, y, 240, 1, lineBuf);
         }
-        tft.pushImage(0, y, 240, 1, lineBuf, (uint16_t)0xF81F);
+    } else {
+        // Half size (120x120), centered on 240x240 display
+        uint16_t scaledBuf[120];
+        for (int y = 0; y < 240; y++) {
+            if (img.read((uint8_t*)lineBuf, 480) != 480) break;
+            if (y & 1) continue;  // skip odd rows
+            for (int x = 0; x < 120; x++) {
+                uint16_t px = lineBuf[x * 2];
+                scaledBuf[x] = (px == MAGENTA_LE) ? bg565 : px;
+            }
+            tft.pushImage(60, 60 + y / 2, 120, 1, scaledBuf);
+        }
     }
     img.close();
 }
@@ -183,7 +213,7 @@ String DisplayManager::formatScheduledAt(time_t t) {
     struct tm tm_tom;
     localtime_r(&tomorrow, &tm_tom);
     if (tm_t.tm_year == tm_tom.tm_year && tm_t.tm_yday == tm_tom.tm_yday) {
-        return String("Tomorrow, ") + timeBuf;
+        return String("Tomorrow");
     }
     const char* days[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
     return String(days[tm_t.tm_wday]) + ", " + timeBuf;

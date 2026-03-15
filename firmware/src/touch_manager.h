@@ -8,6 +8,7 @@ public:
     bool wasTapped();    // Returns true once per tap, then resets
 private:
     bool _tapped = false;
+    bool _available = false;
     uint32_t _lastTouchTime = 0;
     static const uint32_t DEBOUNCE_MS = 300;
 };

@@ -17,11 +17,11 @@
 #define REMINDERS_PATH    "/reminders.json"
 #define POLL_INTERVAL_MS  30000   // 30 seconds
 
-// ── Touch (CST816S, I2C) ──────────────────────────────────────────────────────
-#define TOUCH_SDA  6
-#define TOUCH_SCL  7
-#define TOUCH_INT  -1   // Interrupt pin (not used in polling mode)
-#define TOUCH_RST  -1
+// ── Touch (CHSC6X, I2C on Seeed Round Display) ───────────────────────────────
+#define TOUCH_SDA  6    // D4
+#define TOUCH_SCL  7    // D5
+// RST shared with display (D0 / GPIO2), INT on D7 / GPIO20 — both unused here
 
-// ── Display (GC9A01, SPI) — see tft_setup.h ──────────────────────────────────
-// Pin definitions are in tft_setup.h for TFT_eSPI compatibility
+// ── Display (GC9A01, SPI) — see lgfx_config.h ────────────────────────────────
+// Pin definitions are in lgfx_config.h for LovyanGFX
+ 

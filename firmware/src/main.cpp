@@ -1,5 +1,8 @@
 #include <Arduino.h>
+#include <LittleFS.h>
 #include "config.h"
+
+static const uint32_t CONFIRM_HOLD_MS = 3000;
 #include "wifi_manager.h"
 #include "time_manager.h"
 #include "reminder_store.h"
@@ -41,11 +44,15 @@ static void checkAndFireReminders() {
             fired = true;
         }
     }
-    if (fired) {
-        Reminder* active = getNextActiveReminder();
-        if (active) displayManager.showActive(*active);
-    } else if (displayManager.getState() == DisplayState::Idle) {
-        // Refresh idle — next reminder may have changed
+
+    Reminder* active = getNextActiveReminder();
+    if (active) {
+        // Show active screen if something just fired, or if we're not already showing it
+        // (handles boot with pre-existing active reminders)
+        if (fired || displayManager.getState() != DisplayState::Active) {
+            displayManager.showActive(*active);
+        }
+    } else if (displayManager.getState() != DisplayState::Active) {
         displayManager.showIdle(getNextPendingReminder());
     }
 }
@@ -54,12 +61,17 @@ static void dismissCurrentReminder() {
     Reminder* active = getNextActiveReminder();
     if (!active) return;
 
-    reminderStore.updateStatus(active->id, ReminderStatus::Completed);
+    String id = active->id;  // copy before modifying store
 
-    // Show confirmation checkmark, then transition
+    // Show checkmark immediately for instant feedback
     displayManager.showConfirmation();
 
-    // After confirmation: check for more active reminders or go idle
+    // Update storage while checkmark is visible (hides LittleFS latency)
+    reminderStore.updateStatus(id, ReminderStatus::Completed);
+
+    // Hold checkmark for 3 seconds
+    delay(CONFIRM_HOLD_MS);
+
     Reminder* nextActive = getNextActiveReminder();
     if (nextActive) {
         displayManager.showActive(*nextActive);
@@ -73,8 +85,13 @@ void setup() {
     delay(500);
     Serial.println("\n[boot] that reminds me... starting");
 
+    // LittleFS MUST init before display (fonts/images live on flash)
+    if (!LittleFS.begin(true)) {
+        Serial.println("[boot] LittleFS mount failed");
+    }
+
     displayManager.begin();
-    displayManager.showBoot();   // Logo while connecting
+    displayManager.showBoot();
 
     if (!wifiConnect()) {
         Serial.println("[boot] Wi-Fi failed");
@@ -85,7 +102,6 @@ void setup() {
     apiServerBegin();
     touchManager.begin();
 
-    // First render — show active if any fired, else idle
     checkAndFireReminders();
 
     Serial.println("[boot] Ready");
@@ -94,10 +110,14 @@ void setup() {
 void loop() {
     apiServerHandle();
     touchManager.update();
-    displayManager.tick();   // Ring pulse animation
+    displayManager.tick();
 
-    if (touchManager.wasTapped() && displayManager.getState() == DisplayState::Active) {
-        dismissCurrentReminder();
+    if (touchManager.wasTapped()) {
+        Serial.printf("[main] Tap detected, display state=%d\n", (int)displayManager.getState());
+        if (displayManager.getState() == DisplayState::Active) {
+            Serial.println("[main] Dismissing reminder");
+            dismissCurrentReminder();
+        }
     }
 
     if (millis() - lastPollMs >= POLL_INTERVAL_MS) {
