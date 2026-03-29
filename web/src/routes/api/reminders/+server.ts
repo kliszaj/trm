@@ -12,6 +12,8 @@ function toApiReminder(r: StoredReminder): Reminder {
 }
 
 export const GET: RequestHandler = async () => {
+  // Remove stale reminders older than 24h
+  store.purgeOld();
   // Activate any overdue reminders
   store.activateOverdue();
 

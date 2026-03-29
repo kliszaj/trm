@@ -63,6 +63,23 @@ export function update(id: string, fields: Partial<StoredReminder>): StoredRemin
   return r;
 }
 
+export function purgeOld(): void {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const reminders = load();
+  const before = reminders.length;
+  // Remove completed reminders dismissed more than 24h ago
+  // Remove non-recurring pending/active reminders scheduled more than 24h ago
+  for (let i = reminders.length - 1; i >= 0; i--) {
+    const r = reminders[i];
+    if (r.status === 'completed' && r.completed_at && r.completed_at < cutoff) {
+      reminders.splice(i, 1);
+    } else if (r.status !== 'completed' && r.recurrence === 'none' && r.scheduled_at < cutoff) {
+      reminders.splice(i, 1);
+    }
+  }
+  if (reminders.length !== before) save();
+}
+
 export function activateOverdue(): StoredReminder[] {
   const now = new Date().toISOString();
   const reminders = load();
